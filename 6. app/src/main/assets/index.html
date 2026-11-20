@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Jutarnji PDF Kreator</title>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #dc2626;
+      --primary-hover: #b91c1c;
+      --accent: #2563eb;
+      --success: #16a34a;
+      --warn: #d97706;
+      --input-bg: #0b1120;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .container {
+      max-width: 560px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 2px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+    .badge {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #fca5a5;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .step-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      color: #fff;
+      transition: transform 0.08s ease, opacity 0.15s ease;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-portal { background: var(--accent); }
+    .btn-paste { background: #334155; border: 1px solid #475569; }
+    .btn-primary { background: var(--primary); font-size: 1.04rem; padding: 15px; }
+    .btn-stop { background: var(--warn); }
+    .btn-success { background: var(--success); }
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 38px 12px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 0.92rem;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .clear-btn {
+      position: absolute;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.2rem;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .progress-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .bar-bg {
+      width: 100%;
+      height: 10px;
+      background: var(--input-bg);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), #f97316);
+      transition: width 0.2s ease;
+    }
+    .status-text {
+      font-size: 0.88rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .thumbs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 0;
+    }
+    .thumb-item {
+      flex: 0 0 auto;
+      width: 44px;
+      height: 62px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      position: relative;
+    }
+    .thumb-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .thumb-num {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      font-size: 0.65rem;
+      text-align: center;
+      padding: 1px 0;
+    }
+    .alert {
+      padding: 10px 12px;
+      border-radius: 9px;
+      font-size: 0.86rem;
+      background: rgba(217, 119, 6, 0.16);
+      border: 1px solid rgba(217, 119, 6, 0.45);
+      color: #fcd34d;
+      display: none;
+    }
+    .alert.ok {
+      background: rgba(22, 163, 74, 0.16);
+      border-color: rgba(22, 163, 74, 0.45);
+      color: #86efac;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Jutarnji PDF Kreator</h1>
+      <span class="badge" id="issueBadge">Izdanje: ---</span>
+    </div>
+
+    <div class="card">
+      <div class="step-title">Korak 1: Kopiraj vezu thumbnaila</div>
+      <a class="btn btn-portal" href="https://online.jutarnji.hr" target="_blank" rel="noopener">
+        Otvori online.jutarnji.hr
+      </a>
+      <div style="font-size:0.84rem; color:var(--muted);">
+        Zadrzi prst na naslovnici odabranog izdanja, odaberi <strong>Kopiraj adresu veze</strong> i vrati se ovdje.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="step-title">Korak 2: Zalijepi link izdanja</div>
+      <button class="btn btn-paste" id="btnPaste" type="button">
+        Zalijepi iz medjuspremnika
+      </button>
+      <div class="input-wrap">
+        <input
+          type="text"
+          id="urlInput"
+          placeholder="https://online.jutarnji.hr/issue/43433/10145 ili broj"
+          autocomplete="off"
+        />
+        <button class="clear-btn" id="btnClear" type="button" title="Obrisi">x</button>
+      </div>
+      <div class="alert" id="msgBox"></div>
+    </div>
+
+    <div class="card">
+      <div class="step-title">Korak 3: Preuzimanje i izrada PDF-a</div>
+      <button class="btn btn-primary" id="btnStart" type="button" disabled>
+        Preuzmi slike i spremi PDF
+      </button>
+      <button class="btn btn-stop hidden" id="btnStop" type="button">
+        Zaustavi i spremi preuzeto
+      </button>
+
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="bar-bg"><div class="bar-fill" id="barFill"></div></div>
+        <div class="status-text">
+          <span id="statusLeft">Spremno</span>
+          <span id="statusRight">0 MB</span>
+        </div>
+      </div>
+
+      <div class="thumbs hidden" id="thumbsRow"></div>
+
+      <button class="btn btn-success hidden" id="btnOpenDownloads" type="button">
+        Otvori mapu Preuzimanja
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById("urlInput");
+    const issueBadge = document.getElementById("issueBadge");
+    const btnPaste = document.getElementById("btnPaste");
+    const btnClear = document.getElementById("btnClear");
+    const btnStart = document.getElementById("btnStart");
+    const btnStop = document.getElementById("btnStop");
+    const btnOpenDownloads = document.getElementById("btnOpenDownloads");
+    const progressWrap = document.getElementById("progressWrap");
+    const barFill = document.getElementById("barFill");
+    const statusLeft = document.getElementById("statusLeft");
+    const statusRight = document.getElementById("statusRight");
+    const thumbsRow = document.getElementById("thumbsRow");
+    const msgBox = document.getElementById("msgBox");
+
+    let currentIssue = null;
+    let isRunning = false;
+    let stopRequested = false;
+
+    function showMsg(text, isOk = false) {
+      msgBox.textContent = text;
+      msgBox.className = isOk ? "alert ok" : "alert";
+      msgBox.style.display = "block";
+    }
+
+    function hideMsg() {
+      msgBox.style.display = "none";
+    }
+
+    function extractIssue(raw) {
+      if (!raw) return null;
+      const s = String(raw).trim();
+      const m1 = s.match(/issue\/(\d{4,7})/i);
+      if (m1) return m1[1];
+      const m2 = s.match(/issues\/(\d{4,7})/i);
+      if (m2) return m2[1];
+      const m3 = s.match(/\b(\d{4,7})\b/);
+      if (m3) return m3[1];
+      return null;
+    }
+
+    function updateIssueFromInput() {
+      const id = extractIssue(urlInput.value);
+      currentIssue = id;
+      if (id) {
+        issueBadge.textContent = "Izdanje: " + id;
+        btnStart.disabled = isRunning;
+        hideMsg();
+      } else {
+        issueBadge.textContent = "Izdanje: ---";
+        btnStart.disabled = true;
+      }
+    }
+
+    async function handlePaste() {
+      hideMsg();
+      let pasted = "";
+      if (window.AndroidBridge && typeof window.AndroidBridge.readClipboard === "function") {
+        pasted = window.AndroidBridge.readClipboard();
+      } else if (navigator.clipboard && navigator.clipboard.readText) {
+        try {
+          pasted = await navigator.clipboard.readText();
+        } catch (e) {}
+      }
+
+      if (pasted && pasted.trim()) {
+        urlInput.value = pasted.trim();
+        updateIssueFromInput();
+        if (currentIssue) {
+          showMsg("Prepoznato izdanje " + currentIssue + ".", true);
+        } else {
+          showMsg("Zalijepljeni tekst ne sadrzi broj izdanja.");
+        }
+      } else {
+        urlInput.focus();
+        showMsg("Medjuspremnik je prazan ili nije dostupan. Zalijepi rucno u polje ispod.");
+      }
+    }
+
+    function base64ToUint8Array(b64) {
+      const bin = atob(b64);
+      const len = bin.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = bin.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function uint8ToBase64(u8) {
+      const CHUNK = 32766;
+      let result = "";
+      for (let i = 0; i < u8.length; i += CHUNK) {
+        const sub = u8.subarray(i, i + CHUNK);
+        let bin = "";
+        for (let j = 0; j < sub.length; j++) {
+          bin += String.fromCharCode(sub[j]);
+        }
+        result += btoa(bin);
+      }
+      return result;
+    }
+
+    async function fetchPageBytes(url) {
+      if (window.AndroidBridge && typeof window.AndroidBridge.fetchImageBase64 === "function") {
+        const res = window.AndroidBridge.fetchImageBase64(url);
+        if (res === "ERR_404") return { status: 404, bytes: null };
+        if (!res || res.startsWith("ERR_")) {
+          throw new Error(res || "Greska pri preuzimanju");
+        }
+        return { status: 200, bytes: base64ToUint8Array(res) };
+      }
+      const resp = await fetch(url);
+      if (resp.status === 404) return { status: 404, bytes: null };
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const buf = await resp.arrayBuffer();
+      return { status: 200, bytes: new Uint8Array(buf) };
+    }
+
+    function addThumb(pageNum, bytes) {
+      const blob = new Blob([bytes], { type: "image/jpeg" });
+      const objUrl = URL.createObjectURL(blob);
+      const div = document.createElement("div");
+      div.className = "thumb-item";
+      div.innerHTML = '<img src="' + objUrl + '" alt=""><div class="thumb-num">' + pageNum + '</div>';
+      thumbsRow.appendChild(div);
+      thumbsRow.scrollLeft = thumbsRow.scrollWidth;
+    }
+
+    async function startProcess() {
+      if (!currentIssue || isRunning) return;
+      if (typeof PDFLib === "undefined") {
+        showMsg("Biblioteka za PDF nije ucitana. Provjeri internetsku vezu.");
+        return;
+      }
+
+      isRunning = true;
+      stopRequested = false;
+      btnStart.classList.add("hidden");
+      btnStop.classList.remove("hidden");
+      btnOpenDownloads.classList.add("hidden");
+      progressWrap.classList.remove("hidden");
+      thumbsRow.classList.remove("hidden");
+      thumbsRow.innerHTML = "";
+      hideMsg();
+
+      const pages = [];
+      let totalBytes = 0;
+      let page = 1;
+
+      try {
+        while (!stopRequested && page <= 250) {
+          const imgUrl =
+            "https://online.jutarnji.hr/storageNotCache/pdf/issues/" +
+            currentIssue +
+            "/page-" +
+            page +
+            ".jpg";
+
+          statusLeft.textContent = "Preuzimam stranicu " + page + "...";
+          barFill.style.width = Math.min(92, page * 1.6) + "%";
+
+          await new Promise((r) => setTimeout(r, 25));
+
+          const res = await fetchPageBytes(imgUrl);
+          if (res.status === 404) {
+            break;
+          }
+
+          pages.push(res.bytes);
+          totalBytes += res.bytes.length;
+          statusRight.textContent = (totalBytes / (1024 * 1024)).toFixed(1) + " MB";
+          addThumb(page, res.bytes);
+          page++;
+        }
+
+        if (pages.length === 0) {
+          showMsg("Nije pronadjena nijedna stranica za izdanje " + currentIssue + ".");
+          return;
+        }
+
+        statusLeft.textContent = "Spajam " + pages.length + " stranica u PDF...";
+        barFill.style.width = "96%";
+        await new Promise((r) => setTimeout(r, 40));
+
+        const pdfDoc = await PDFLib.PDFDocument.create();
+        for (let i = 0; i < pages.length; i++) {
+          const jpgImage = await pdfDoc.embedJpg(pages[i]);
+          const pdfPage = pdfDoc.addPage([jpgImage.width, jpgImage.height]);
+          pdfPage.drawImage(jpgImage, {
+            x: 0,
+            y: 0,
+            width: jpgImage.width,
+            height: jpgImage.height
+          });
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const fileName = "Jutarnji_" + currentIssue + ".pdf";
+        barFill.style.width = "100%";
+
+        if (window.AndroidBridge && typeof window.AndroidBridge.savePdfBase64 === "function") {
+          statusLeft.textContent = "Spremam datoteku...";
+          await new Promise((r) => setTimeout(r, 30));
+          const b64 = uint8ToBase64(pdfBytes);
+          const saveRes = window.AndroidBridge.savePdfBase64(b64, fileName);
+          if (saveRes === "OK") {
+            statusLeft.textContent = "Gotovo (" + pages.length + " str.)";
+            showMsg("PDF je spremljen u mapu Preuzimanja: " + fileName, true);
+            btnOpenDownloads.classList.remove("hidden");
+          } else {
+            showMsg("Greska pri spremanju PDF-a: " + saveRes);
+          }
+        } else {
+          const blob = new Blob([pdfBytes], { type: "application/pdf" });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = fileName;
+          link.click();
+          statusLeft.textContent = "Gotovo (" + pages.length + " str.)";
+          showMsg("PDF preuzet: " + fileName, true);
+        }
+      } catch (err) {
+        showMsg("Greska: " + (err && err.message ? err.message : String(err)));
+      } finally {
+        isRunning = false;
+        btnStop.classList.add("hidden");
+        btnStart.classList.remove("hidden");
+        btnStart.disabled = !currentIssue;
+      }
+    }
+
+    btnPaste.addEventListener("click", handlePaste);
+    btnClear.addEventListener("click", () => {
+      urlInput.value = "";
+      updateIssueFromInput();
+      hideMsg();
+    });
+    urlInput.addEventListener("input", updateIssueFromInput);
+    btnStart.addEventListener("click", startProcess);
+    btnStop.addEventListener("click", () => {
+      stopRequested = true;
+      statusLeft.textContent = "Zaustavljam...";
+    });
+    btnOpenDownloads.addEventListener("click", () => {
+      if (window.AndroidBridge && typeof window.AndroidBridge.openDownloads === "function") {
+        window.AndroidBridge.openDownloads();
+      }
+    });
+  </script>
+</body>
+</html>
