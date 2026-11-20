@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Jutarnji PDF Kreator</title>
-  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
     :root {
       --bg: #0f172a;
@@ -13,7 +12,6 @@
       --text: #f8fafc;
       --muted: #94a3b8;
       --primary: #dc2626;
-      --primary-hover: #b91c1c;
       --accent: #2563eb;
       --success: #16a34a;
       --warn: #d97706;
@@ -223,7 +221,7 @@
         <input
           type="text"
           id="urlInput"
-          placeholder="https://online.jutarnji.hr/issue/43433/10145 ili broj"
+          placeholder="https://online.jutarnji.hr/issue/43438/10146 ili broj"
           autocomplete="off"
         />
         <button class="clear-btn" id="btnClear" type="button" title="Obrisi">x</button>
@@ -244,7 +242,7 @@
         <div class="bar-bg"><div class="bar-fill" id="barFill"></div></div>
         <div class="status-text">
           <span id="statusLeft">Spremno</span>
-          <span id="statusRight">0 MB</span>
+          <span id="statusRight">0.0 MB</span>
         </div>
       </div>
 
@@ -273,7 +271,6 @@
 
     let currentIssue = null;
     let isRunning = false;
-    let stopRequested = false;
 
     function showMsg(text, isOk = false) {
       msgBox.textContent = text;
@@ -335,156 +332,64 @@
       }
     }
 
-    function base64ToUint8Array(b64) {
-      const bin = atob(b64);
-      const len = bin.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = bin.charCodeAt(i);
-      }
-      return bytes;
-    }
-
-    function uint8ToBase64(u8) {
-      const CHUNK = 32766;
-      let result = "";
-      for (let i = 0; i < u8.length; i += CHUNK) {
-        const sub = u8.subarray(i, i + CHUNK);
-        let bin = "";
-        for (let j = 0; j < sub.length; j++) {
-          bin += String.fromCharCode(sub[j]);
-        }
-        result += btoa(bin);
-      }
-      return result;
-    }
-
-    async function fetchPageBytes(url) {
-      if (window.AndroidBridge && typeof window.AndroidBridge.fetchImageBase64 === "function") {
-        const res = window.AndroidBridge.fetchImageBase64(url);
-        if (res === "ERR_404") return { status: 404, bytes: null };
-        if (!res || res.startsWith("ERR_")) {
-          throw new Error(res || "Greska pri preuzimanju");
-        }
-        return { status: 200, bytes: base64ToUint8Array(res) };
-      }
-      const resp = await fetch(url);
-      if (resp.status === 404) return { status: 404, bytes: null };
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      const buf = await resp.arrayBuffer();
-      return { status: 200, bytes: new Uint8Array(buf) };
-    }
-
-    function addThumb(pageNum, bytes) {
-      const blob = new Blob([bytes], { type: "image/jpeg" });
-      const objUrl = URL.createObjectURL(blob);
-      const div = document.createElement("div");
-      div.className = "thumb-item";
-      div.innerHTML = '<img src="' + objUrl + '" alt=""><div class="thumb-num">' + pageNum + '</div>';
-      thumbsRow.appendChild(div);
-      thumbsRow.scrollLeft = thumbsRow.scrollWidth;
-    }
-
-    async function startProcess() {
-      if (!currentIssue || isRunning) return;
-      if (typeof PDFLib === "undefined") {
-        showMsg("Biblioteka za PDF nije ucitana. Provjeri internetsku vezu.");
-        return;
-      }
-
-      isRunning = true;
-      stopRequested = false;
-      btnStart.classList.add("hidden");
-      btnStop.classList.remove("hidden");
-      btnOpenDownloads.classList.add("hidden");
-      progressWrap.classList.remove("hidden");
-      thumbsRow.classList.remove("hidden");
-      thumbsRow.innerHTML = "";
-      hideMsg();
-
-      const pages = [];
-      let totalBytes = 0;
-      let page = 1;
-
-      try {
-        while (!stopRequested && page <= 250) {
-          const imgUrl =
-            "https://online.jutarnji.hr/storageNotCache/pdf/issues/" +
-            currentIssue +
-            "/page-" +
-            page +
-            ".jpg";
-
-          statusLeft.textContent = "Preuzimam stranicu " + page + "...";
-          barFill.style.width = Math.min(92, page * 1.6) + "%";
-
-          await new Promise((r) => setTimeout(r, 25));
-
-          const res = await fetchPageBytes(imgUrl);
-          if (res.status === 404) {
-            break;
-          }
-
-          pages.push(res.bytes);
-          totalBytes += res.bytes.length;
-          statusRight.textContent = (totalBytes / (1024 * 1024)).toFixed(1) + " MB";
-          addThumb(page, res.bytes);
-          page++;
-        }
-
-        if (pages.length === 0) {
-          showMsg("Nije pronadjena nijedna stranica za izdanje " + currentIssue + ".");
-          return;
-        }
-
-        statusLeft.textContent = "Spajam " + pages.length + " stranica u PDF...";
-        barFill.style.width = "96%";
-        await new Promise((r) => setTimeout(r, 40));
-
-        const pdfDoc = await PDFLib.PDFDocument.create();
-        for (let i = 0; i < pages.length; i++) {
-          const jpgImage = await pdfDoc.embedJpg(pages[i]);
-          const pdfPage = pdfDoc.addPage([jpgImage.width, jpgImage.height]);
-          pdfPage.drawImage(jpgImage, {
-            x: 0,
-            y: 0,
-            width: jpgImage.width,
-            height: jpgImage.height
-          });
-        }
-
-        const pdfBytes = await pdfDoc.save();
-        const fileName = "Jutarnji_" + currentIssue + ".pdf";
-        barFill.style.width = "100%";
-
-        if (window.AndroidBridge && typeof window.AndroidBridge.savePdfBase64 === "function") {
-          statusLeft.textContent = "Spremam datoteku...";
-          await new Promise((r) => setTimeout(r, 30));
-          const b64 = uint8ToBase64(pdfBytes);
-          const saveRes = window.AndroidBridge.savePdfBase64(b64, fileName);
-          if (saveRes === "OK") {
-            statusLeft.textContent = "Gotovo (" + pages.length + " str.)";
-            showMsg("PDF je spremljen u mapu Preuzimanja: " + fileName, true);
-            btnOpenDownloads.classList.remove("hidden");
-          } else {
-            showMsg("Greska pri spremanju PDF-a: " + saveRes);
-          }
-        } else {
-          const blob = new Blob([pdfBytes], { type: "application/pdf" });
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = fileName;
-          link.click();
-          statusLeft.textContent = "Gotovo (" + pages.length + " str.)";
-          showMsg("PDF preuzet: " + fileName, true);
-        }
-      } catch (err) {
-        showMsg("Greska: " + (err && err.message ? err.message : String(err)));
-      } finally {
-        isRunning = false;
+    function resetUiRunning(running) {
+      isRunning = running;
+      if (running) {
+        btnStart.classList.add("hidden");
+        btnStop.classList.remove("hidden");
+        btnOpenDownloads.classList.add("hidden");
+        progressWrap.classList.remove("hidden");
+        thumbsRow.classList.remove("hidden");
+        thumbsRow.innerHTML = "";
+        barFill.style.width = "2%";
+        statusRight.textContent = "0.0 MB";
+        hideMsg();
+      } else {
         btnStop.classList.add("hidden");
         btnStart.classList.remove("hidden");
         btnStart.disabled = !currentIssue;
+      }
+    }
+
+    window.onNativeProgress = function (page, totalBytes) {
+      statusLeft.textContent = "Preuzimam i spremam str. " + page + "...";
+      barFill.style.width = Math.min(96, page * 1.5) + "%";
+      statusRight.textContent = (totalBytes / (1024 * 1024)).toFixed(1) + " MB";
+    };
+
+    window.onNativePageAdded = function (pageNum, totalBytes, thumbB64) {
+      statusRight.textContent = (totalBytes / (1024 * 1024)).toFixed(1) + " MB";
+      const div = document.createElement("div");
+      div.className = "thumb-item";
+      const imgHtml = thumbB64
+        ? '<img src="data:image/jpeg;base64,' + thumbB64 + '" alt="">'
+        : "";
+      div.innerHTML = imgHtml + '<div class="thumb-num">' + pageNum + '</div>';
+      thumbsRow.appendChild(div);
+      thumbsRow.scrollLeft = thumbsRow.scrollWidth;
+    };
+
+    window.onNativeFinished = function (totalPages, fileName) {
+      resetUiRunning(false);
+      barFill.style.width = "100%";
+      statusLeft.textContent = "Gotovo (" + totalPages + " str.)";
+      showMsg("PDF je spremljen u mapu Preuzimanja: " + fileName, true);
+      btnOpenDownloads.classList.remove("hidden");
+    };
+
+    window.onNativeError = function (errText) {
+      resetUiRunning(false);
+      statusLeft.textContent = "Prekinuto";
+      showMsg(errText);
+    };
+
+    function startProcess() {
+      if (!currentIssue || isRunning) return;
+      if (window.AndroidBridge && typeof window.AndroidBridge.startDownload === "function") {
+        resetUiRunning(true);
+        window.AndroidBridge.startDownload(currentIssue);
+      } else {
+        showMsg("AndroidBridge nije dostupan.");
       }
     }
 
@@ -497,8 +402,10 @@
     urlInput.addEventListener("input", updateIssueFromInput);
     btnStart.addEventListener("click", startProcess);
     btnStop.addEventListener("click", () => {
-      stopRequested = true;
-      statusLeft.textContent = "Zaustavljam...";
+      statusLeft.textContent = "Zavrsavam PDF...";
+      if (window.AndroidBridge && typeof window.AndroidBridge.stopDownload === "function") {
+        window.AndroidBridge.stopDownload();
+      }
     });
     btnOpenDownloads.addEventListener("click", () => {
       if (window.AndroidBridge && typeof window.AndroidBridge.openDownloads === "function") {
